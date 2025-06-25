@@ -1,50 +1,70 @@
-# 🔐 P2WSH Multisig Address & Unsigned Transaction Toolkit
+# 🔐 P2WSH Multisig Address & Transaction Toolkit
 
-This repository provides three Go command-line tools to:
-
-1. Generate a **2-of-3 P2WSH multisig address** and test data.
-2. Construct and verify an **unsigned Bitcoin transaction** spending from the generated address.
-3. Verify the **witness of a signed transaction** spending from the multisig address.
+This repository contains a toolchain for creating, signing, and verifying Bitcoin native SegWit multisig (`P2WSH`) transactions using Go.
 
 ---
 
-## 📁 Tools
+## 🧰 Tools Overview
 
 ### 1. `gen_multisig_test_data.go`
 
 Generates:
 
-- A random **2-of-3 multisig P2WSH address**
-- 3 `xpub`s with matching `0/0` derivation paths
-- The **redeem script** used to compute the address
+- A random 2-of-3 P2WSH multisig setup
+- `xpubs.json` — public xpub + derivation path data
+- `privkeys.json` — private keys in WIF format
+- Prints the derived P2WSH address and redeem script
 
 ### 2. `multisig_tx_tool.go`
 
-Verifies:
+Takes:
 
-- That the given `xpubs + derivation paths` correctly reconstruct the expected P2WSH address
+- The expected P2WSH address
+- A 32-byte hex string (used to simulate a txid)
+- The `xpubs.json` file
+- The `threshold` value (e.g. 2 for 2-of-3)
 
-Creates:
+Produces:
 
-- An **unsigned Bitcoin transaction** spending from that address
-- The `prevout` is a **double SHA256 of a 32-byte hex input**
-- The transaction **pays back** to the same multisig address
+- An **unsigned transaction hex** spending from that address
+- Validates that the derived redeem script matches the given address
+- Saves the `redeem script` as `redeem.txt`
 
-### 3. `verify_multisig_witness.go`
+### 3. `sign_multisig_tx.go`
 
-Verifies:
+Signs the transaction using:
 
-- That the **witness on a signed P2WSH transaction** is valid
-- Takes a signed tx hex, a P2WSH address, the redeem script, and the amount being spent
+- `privkeys.json` (private keys)
+- The redeem script (from `redeem.txt`)
+- The unsigned transaction hex
+- The UTXO amount
+- The `threshold` number of required signatures
+
+Produces:
+
+- A fully **signed transaction hex**
+
+### 4. `verify_multisig_witness.go`
+
+Takes:
+
+- A signed transaction
+- The P2WSH address it spends from
+- The redeem script (`redeem.txt`)
+- The UTXO amount
+
+Runs:
+
+- Script engine to validate the witness stack
 
 ---
 
-## 🚀 Prerequisites
+## ⚙️ Prerequisites
 
 - Go 1.18+
-- Git and bash-compatible shell
+- OpenSSL (for testing random input)
+- `btcd` libraries:
 
-Install dependencies (optional, but these are used under the hood):
 ```bash
 go get github.com/btcsuite/btcd
 go get github.com/btcsuite/btcutil
@@ -52,127 +72,115 @@ go get github.com/btcsuite/btcutil
 
 ---
 
-## 🔧 Usage
+## 🔧 Workflow Example
 
-### ✅ Step 1: Generate Test Data
+### ✅ Step 1: Generate Keys and Multisig Info
 
 ```bash
 go run gen_multisig_test_data.go
 ```
 
-#### 🔎 Output Example:
-
-```
-=== ✅ Multisig Test Vector ===
-P2WSH Address: bc1qxyzabc...
-
-JSON Xpubs:
-[
-  {
-    "xpub": "xpub6CUGRUonZSQ4TWtTMmz...",
-    "path": "0/0"
-  },
-  ...
-]
-
-Redeem Script (hex):
-522103...ae
-```
-
-Copy the **address**, **JSON xpubs**, and **redeem script** for the next step.
+Output:
+- `xpubs.json`
+- `privkeys.json`
+- Prints the P2WSH address and redeem script
 
 ---
 
-### ✅ Step 2: Run Verification & TX Tool
+### ✅ Step 2: Construct Unsigned Transaction
 
-Generate a 32-byte hex value (used to construct a fake txid):
-
+Generate a random 32-byte hex string:
 ```bash
 HEX=$(openssl rand -hex 32)
 ```
 
-Then run:
+Run:
 
 ```bash
 go run multisig_tx_tool.go \
-  -address <P2WSH_ADDRESS_FROM_STEP_1> \
+  -address <P2WSH_ADDRESS> \
   -hex $HEX \
-  -xpubs '<PASTE_JSON_FROM_STEP_1>' \
+  -xpubs xpubs.json \
   -threshold 2
 ```
 
-#### 💡 Example
+Output:
+- Unsigned TX hex (printed)
+- `redeem.txt` file
+
+---
+
+### ✅ Step 3: Sign Transaction
 
 ```bash
-go run multisig_tx_tool.go \
-  -address bc1qxyzabc... \
-  -hex 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f \
-  -xpubs '[{"xpub":"xpub6...","path":"0/0"},{"xpub":"xpub6...","path":"0/0"},{"xpub":"xpub6...","path":"0/0"}]' \
+go run sign_multisig_tx.go \
+  -tx <UNSIGNED_TX_HEX> \
+  -redeem $(cat redeem.txt) \
+  -privkeys privkeys.json \
+  -amount 1000 \
   -threshold 2
 ```
 
-This produces an unsigned tx hex.
+Only the first `N` private keys (matching the threshold) will be used.
 
 ---
 
-### ✅ Step 3: Sign the Transaction (external)
-
-Use your preferred Bitcoin signer (e.g. HWI, Specter, Core) to sign the unsigned tx created in Step 2. Once signed, you'll have the **signed tx hex**.
-
----
-
-### ✅ Step 4: Verify the Witness
+### ✅ Step 4: Verify Witness Stack
 
 ```bash
 go run verify_multisig_witness.go \
   -tx <SIGNED_TX_HEX> \
   -address <P2WSH_ADDRESS> \
-  -redeem <REDEEM_SCRIPT_HEX> \
-  -amount <AMOUNT_IN_SATS>
-```
-
-#### 💡 Example
-
-```bash
-go run verify_multisig_witness.go \
-  -tx 010000000001... \
-  -address bc1qxyzabc... \
-  -redeem 522103...ae \
+  -redeem $(cat redeem.txt) \
   -amount 1000
 ```
 
-### 🟢 Output
+If valid:
 
 ```
 ✅ Witness verification succeeded.
 ```
 
-Or:
+If broken:
 
 ```
-❌ Witness verification failed: <reason>
+❌ Witness verification failed: multisig dummy argument has length 72 instead of 0
 ```
+
+---
+
+## 📁 File Outputs
+
+| File           | Purpose                                |
+|----------------|----------------------------------------|
+| `xpubs.json`   | Public metadata (used for unsigned tx) |
+| `privkeys.json`| Private keys (used for signing)        |
+| `redeem.txt`   | Redeem script in hex (used in all steps) |
 
 ---
 
 ## 📌 Notes
 
-- The transaction created in Step 2 is **unsigned** and **non-broadcastable** until signed.
-- `verify_multisig_witness.go` is useful for **testing or verifying signature correctness** without relying on full nodes.
-- Amounts are set to **1000 sats (dummy)** in test transactions. Adjust as needed.
+- All txs use a fake prevout: `double_sha256(hex input)`
+- The dummy value in witness stack is required for `OP_CHECKMULTISIG`
+- Witness must include exactly `threshold` signatures
+- Amount is hardcoded to 1000 sats (for test/demo)
 
 ---
 
-## 🛠 Future Improvements
+## 🛠️ TODO / Future Improvements
 
-- PSBT output for signing tools
-- Import/export mnemonic + HD path flexibility
-- Auto-detect redeem script from witness
-- Add regtest/testnet support toggle
+- PSBT export for hardware wallet signing
+- Support regtest / testnet network selection
+- File output for unsigned and signed TX hex
+- Auto-signing via mnemonic phrase or HSM
 
 ---
 
-## 📄 License
+## 🛡 Disclaimer
 
-MIT License. Use at your own risk—testnet only unless extended with secure key handling!
+This toolchain is for **development and testing only**.
+Do not use on mainnet without serious auditing and secure key handling.
+
+MIT License.
 
