@@ -1,0 +1,6 @@
+multisig-check
+privkeys.json
+xpubs.json
+cmd/sign/sign
+cmd/verify-signed/verify-signed
+redeem.txt

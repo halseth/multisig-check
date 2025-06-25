@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -20,21 +21,40 @@ type PrivData struct {
 	Path       string `json:"path"`
 }
 
+func getScriptPubKeyFromAddress(address string) ([]byte, error) {
+	addr, err := btcutil.DecodeAddress(address, &chaincfg.MainNetParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode address: %w", err)
+	}
+	if _, ok := addr.(*btcutil.AddressWitnessScriptHash); !ok {
+		return nil, errors.New("address must be a P2WSH address")
+	}
+	script, err := txscript.PayToAddrScript(addr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create scriptPubKey: %w", err)
+	}
+	return script, nil
+}
+
 func main() {
 	var (
+		address    string
 		txHex      string
 		redeemHex  string
 		privFile   string
 		amountSats int64
+		threshold  int
 	)
 
+	flag.StringVar(&address, "address", "", "P2WSH address being spent from")
 	flag.StringVar(&txHex, "tx", "", "Unsigned transaction hex")
 	flag.StringVar(&redeemHex, "redeem", "", "Redeem script hex")
 	flag.StringVar(&privFile, "privkeys", "", "Path to privkeys.json")
+	flag.IntVar(&threshold, "threshold", 2, "Multisig threshold (e.g. 2-of-3)")
 	flag.Int64Var(&amountSats, "amount", 0, "UTXO amount in sats")
 	flag.Parse()
 
-	if txHex == "" || redeemHex == "" || privFile == "" || amountSats <= 0 {
+	if address == "" || txHex == "" || redeemHex == "" || privFile == "" || amountSats <= 0 {
 		flag.Usage()
 		log.Fatal("All flags are required")
 	}
@@ -54,6 +74,11 @@ func main() {
 		log.Fatalf("Invalid redeem script: %v", err)
 	}
 
+	scriptPubKey, err := getScriptPubKeyFromAddress(address)
+	if err != nil {
+		log.Fatalf("❌ ScriptPubKey error: %v", err)
+	}
+
 	// Load private keys
 	data, err := ioutil.ReadFile(privFile)
 	if err != nil {
@@ -65,15 +90,21 @@ func main() {
 	}
 
 	var sigs [][]byte
-	hashType := txscript.SigHashAll
 
 	for _, p := range privEntries {
 		wif, err := btcutil.DecodeWIF(p.PrivKeyWIF)
 		if err != nil {
 			log.Fatalf("Invalid WIF: %v", err)
 		}
+
+		prevOutFetcher := txscript.NewCannedPrevOutputFetcher(
+			scriptPubKey, amountSats,
+		)
+
+		sigHashes := txscript.NewTxSigHashes(tx, prevOutFetcher)
+
 		sig, err := txscript.RawTxInWitnessSignature(
-			tx, txscript.NewTxSigHashes(tx), 0, amountSats,
+			tx, sigHashes, 0, amountSats,
 			redeemScript, txscript.SigHashAll, wif.PrivKey,
 		)
 		if err != nil {
@@ -82,15 +113,17 @@ func main() {
 		sigs = append(sigs, sig)
 	}
 
-	pubKeys, err := txscript.ExtractPkScriptAddrs(redeemScript, &chaincfg.MainNetParams)
-	if err != nil {
-		log.Fatalf("Failed to extract pubkeys: %v", err)
-	}
+	//pubKeys, err := txscript.ExtractPkScriptAddrs(redeemScript, &chaincfg.MainNetParams)
+	//if err != nil {
+	//	log.Fatalf("Failed to extract pubkeys: %v", err)
+	//}
 
 	// Build multisig witness stack: empty + sig1 + sig2 + redeem script
 	witness := wire.TxWitness{[]byte{}}
-	for _, sig := range sigs {
+	for i := 0; i < threshold; i++ {
+		sig := sigs[i]
 		witness = append(witness, sig)
+
 	}
 	witness = append(witness, redeemScript)
 

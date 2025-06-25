@@ -12,6 +12,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/davecgh/go-spew/spew"
 )
 
 func decodeTx(txHex string) (*wire.MsgTx, error) {
@@ -61,6 +62,13 @@ func main() {
 	tx, err := decodeTx(txHex)
 	if err != nil {
 		log.Fatalf("❌ Transaction decode error: %v", err)
+	}
+
+	fmt.Println(spew.Sdump(tx))
+
+	fmt.Println("Witness stack:")
+	for i, w := range tx.TxIn[0].Witness {
+		fmt.Printf("  [%d] %x (len=%d)\n", i, w, len(w))
 	}
 
 	if len(tx.TxIn) == 0 {
