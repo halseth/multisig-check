@@ -22,13 +22,13 @@ Used to generate example data for testing, SHOULD NOT be used in a production se
 Takes:
 
 - The expected P2WSH address
-- A 32-byte hex string (used to simulate a txid)
+- A 32-byte hex string (essentially the message to sign)
 - The `xpubs.json` file
-- The `threshold` value (e.g. 2 for 2-of-3)
+- The `m` threshold value (e.g. 2 for 2-of-3)
 
 Produces:
 
-- An **unsigned transaction hex** spending from that address
+- An **unsigned transaction hex** spending from that address, sending a dummy amount back to the same address. The prevout will be a hash of the random hex string prvided, meaning the transaction is not valid as a real bitcoin spend.
 - Validates that the derived redeem script matches the given address
 - Saves the `redeem script` as `redeem.txt`
 

@@ -20,6 +20,8 @@ import (
 	"github.com/btcsuite/btcd/wire"
 )
 
+var PREVOUT_PREFIX = []byte("txid random prefix")
+
 type XpubDerivation struct {
 	Xpub string `json:"xpub"`
 	Path string `json:"path"`
@@ -43,18 +45,20 @@ func parseDerivationPath(path string) ([]uint32, error) {
 }
 
 func main() {
-	var addressStr string
-	var hexStr string
-	var xpubFile string
-	var threshold int
+	var (
+		addressStr string
+		hexStr     string
+		xpubFile   string
+		threshold  int
+	)
 
 	flag.StringVar(&addressStr, "address", "", "P2WSH Bitcoin address to verify")
-	flag.StringVar(&hexStr, "hex", "", "32-byte hex string (for double SHA256 prevout)")
+	flag.StringVar(&hexStr, "hex", "", "32-byte random hex string (for double SHA256 prevout)")
 	flag.StringVar(&xpubFile, "xpubs", "", "Path to xpubs.json")
-	flag.IntVar(&threshold, "threshold", 2, "Multisig threshold (e.g. 2-of-3)")
+	flag.IntVar(&threshold, "m", 2, "m: Multisig threshold (e.g. 2-of-3)")
 	flag.Parse()
 
-	if addressStr == "" || hexStr == "" || xpubFile == "" {
+	if threshold <= 0 || addressStr == "" || hexStr == "" || xpubFile == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -123,14 +127,18 @@ func run(addressStr, hexStr, xpubPath string, threshold int) error {
 	}
 	fmt.Println("✅ Address verification successful.")
 
-	// Compute double SHA256 of the input hex string to simulate txid
+	// Compute SHA256 of the input hex string to simulate txid
+	// To ensure real transaction data cannot be inserted here, we prepend the message with a fixed string.
 	rawBytes, err := hex.DecodeString(hexStr)
 	if err != nil {
 		return fmt.Errorf("invalid hex string: %w", err)
 	}
-	h := sha256.Sum256(rawBytes)
-	hh := sha256.Sum256(h[:])
-	txid := chainhash.Hash(hh)
+
+	b := PREVOUT_PREFIX[:]
+	b = append(b, rawBytes...)
+
+	h := sha256.Sum256(b)
+	txid := chainhash.Hash(h)
 
 	outpoint := wire.NewOutPoint(&txid, 0)
 
