@@ -42,15 +42,15 @@ func main() {
 		txHex      string
 		redeemHex  string
 		privFile   string
-		amountSats int64
 		threshold  int
+		amountSats int64 = 1000
 	)
 
 	flag.StringVar(&address, "address", "", "P2WSH address being spent from")
 	flag.StringVar(&txHex, "tx", "", "Unsigned transaction hex")
 	flag.StringVar(&redeemHex, "redeem", "", "Redeem script hex")
 	flag.StringVar(&privFile, "privkeys", "", "Path to privkeys.json")
-	flag.IntVar(&threshold, "threshold", 2, "Multisig threshold (e.g. 2-of-3)")
+	flag.IntVar(&threshold, "m", 2, "Multisig threshold (e.g. 2-of-3)")
 	flag.Int64Var(&amountSats, "amount", 0, "UTXO amount in sats")
 	flag.Parse()
 
@@ -112,11 +112,6 @@ func main() {
 		}
 		sigs = append(sigs, sig)
 	}
-
-	//pubKeys, err := txscript.ExtractPkScriptAddrs(redeemScript, &chaincfg.MainNetParams)
-	//if err != nil {
-	//	log.Fatalf("Failed to extract pubkeys: %v", err)
-	//}
 
 	// Build multisig witness stack: empty + sig1 + sig2 + redeem script
 	witness := wire.TxWitness{[]byte{}}

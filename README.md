@@ -32,15 +32,14 @@ Produces:
 - Validates that the derived redeem script matches the given address
 - Saves the `redeem script` as `redeem.txt`
 
-### 3. `sign_multisig_tx.go`
+### 3. `cmd/sign`
 
-Signs the transaction using:
+Signs the transaction from the previous step using:
 
 - `privkeys.json` (private keys)
 - The redeem script (from `redeem.txt`)
 - The unsigned transaction hex
-- The UTXO amount
-- The `threshold` number of required signatures
+- The `m` number of required signatures
 
 Produces:
 
