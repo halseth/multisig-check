@@ -64,12 +64,6 @@ Runs:
 
 - Go 1.18+
 - OpenSSL (for testing random input)
-- `btcd` libraries:
-
-```bash
-go get github.com/btcsuite/btcd
-go get github.com/btcsuite/btcutil
-```
 
 ---
 
