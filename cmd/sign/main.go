@@ -51,7 +51,6 @@ func main() {
 	flag.StringVar(&redeemHex, "redeem", "", "Redeem script hex")
 	flag.StringVar(&privFile, "privkeys", "", "Path to privkeys.json")
 	flag.IntVar(&threshold, "m", 2, "Multisig threshold (e.g. 2-of-3)")
-	flag.Int64Var(&amountSats, "amount", 0, "UTXO amount in sats")
 	flag.Parse()
 
 	if address == "" || txHex == "" || redeemHex == "" || privFile == "" || amountSats <= 0 {

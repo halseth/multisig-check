@@ -45,14 +45,14 @@ Produces:
 
 - A fully **signed transaction hex**
 
-### 4. `verify_multisig_witness.go`
+### 4. `cmd/verify-signed`
 
 Takes:
 
 - A signed transaction
+- The 32-byte hex string from step 2.
 - The P2WSH address it spends from
 - The redeem script (`redeem.txt`)
-- The UTXO amount
 
 Runs:
 

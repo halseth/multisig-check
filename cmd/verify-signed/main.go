@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -10,10 +11,12 @@ import (
 
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/davecgh/go-spew/spew"
 )
+
+var PREVOUT_PREFIX = []byte("txid random prefix")
 
 func decodeTx(txHex string) (*wire.MsgTx, error) {
 	raw, err := hex.DecodeString(txHex)
@@ -45,16 +48,17 @@ func getScriptPubKeyFromAddress(address string) ([]byte, error) {
 func main() {
 	var (
 		txHex      string
+		hexStr     string
 		address    string
-		amountSats int64
+		amountSats int64 = 1000
 	)
 
 	flag.StringVar(&txHex, "tx", "", "Signed transaction hex")
+	flag.StringVar(&hexStr, "hex", "", "32-byte random hex string (for double SHA256 prevout)")
 	flag.StringVar(&address, "address", "", "P2WSH address being spent from")
-	flag.Int64Var(&amountSats, "amount", 0, "Amount of prevout in sats")
 	flag.Parse()
 
-	if txHex == "" || address == "" || amountSats <= 0 {
+	if hexStr == "" || txHex == "" || address == "" || amountSats <= 0 {
 		flag.Usage()
 		log.Fatal("All flags are required")
 	}
@@ -64,8 +68,6 @@ func main() {
 		log.Fatalf("❌ Transaction decode error: %v", err)
 	}
 
-	fmt.Println(spew.Sdump(tx))
-
 	fmt.Println("Witness stack:")
 	for i, w := range tx.TxIn[0].Witness {
 		fmt.Printf("  [%d] %x (len=%d)\n", i, w, len(w))
@@ -73,6 +75,23 @@ func main() {
 
 	if len(tx.TxIn) == 0 {
 		log.Fatal("❌ No inputs in transaction")
+	}
+
+	// Ensure the outppoint points to the given hex string.
+	rawBytes, err := hex.DecodeString(hexStr)
+	if err != nil {
+		log.Fatal("❌ invalid hex string: %w", err)
+	}
+
+	b := PREVOUT_PREFIX[:]
+	b = append(b, rawBytes...)
+
+	h := sha256.Sum256(b)
+	txid := chainhash.Hash(h)
+
+	outpoint := wire.NewOutPoint(&txid, 0)
+	if tx.TxIn[0].PreviousOutPoint != *outpoint {
+		log.Fatal("❌ wrong prevout")
 	}
 
 	scriptPubKey, err := getScriptPubKeyFromAddress(address)
