@@ -4,3 +4,4 @@ xpubs.json
 cmd/sign/sign
 cmd/verify-signed/verify-signed
 redeem.txt
+cmd/gen/gen

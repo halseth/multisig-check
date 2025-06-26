@@ -1,21 +1,23 @@
-# 🔐 P2WSH Multisig Address & Transaction Toolkit
+# 🔐 P2WSH Multisig Address Verification Key Possession  Toolkit
 
-This repository contains a toolchain for creating, signing, and verifying Bitcoin native SegWit multisig (`P2WSH`) transactions using Go.
+This repository contains a toolchain for creating, signing, and verifying _invalid_ Bitcoin native SegWit multisig (`P2WSH`) transactions using Go. This in order to prove that one can sign for a multisig quorum without signing a broadcastable transaction.
 
 ---
 
 ## 🧰 Tools Overview
 
-### 1. `gen_multisig_test_data.go`
+### 1. `cmd/gen`
 
 Generates:
 
-- A random 2-of-3 P2WSH multisig setup
+- A random m-of-n P2WSH multisig setup
 - `xpubs.json` — public xpub + derivation path data
 - `privkeys.json` — private keys in WIF format
 - Prints the derived P2WSH address and redeem script
 
-### 2. `multisig_tx_tool.go`
+Used to generate example data for testing, SHOULD NOT be used in a production setting.
+
+### 2. `cmd/create-unsigned`
 
 Takes:
 

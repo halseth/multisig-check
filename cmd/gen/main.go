@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/btcsuite/btcd/btcutil"
@@ -25,15 +27,27 @@ type PrivOutput struct {
 }
 
 func main() {
-	if err := run(); err != nil {
+	var (
+		threshold int
+		nKeys     int
+	)
+
+	flag.IntVar(&nKeys, "n", 3, "n: Total keys(e.g. 2-of-3)")
+	flag.IntVar(&threshold, "m", 2, "m: Multisig threshold (e.g. 2-of-3)")
+	flag.Parse()
+
+	if nKeys <= 0 || threshold <= 0 || threshold > nKeys {
+		flag.Usage()
+		log.Fatal("All flags are required for m-of-n setup")
+	}
+
+	if err := run(threshold, nKeys); err != nil {
 		fmt.Fprintf(os.Stderr, "❌ Error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
-	nKeys := 3
-	nRequired := 2
+func run(nRequired, nKeys int) error {
 	path := []uint32{0, 0}
 
 	var pubs []PubOutput
