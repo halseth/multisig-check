@@ -69,10 +69,10 @@ Runs:
 
 ## 🔧 Workflow Example
 
-### ✅ Step 1: Generate Keys and Multisig Info
+### ⚙️  Step 1: Generate Keys and Multisig Info
 
 ```bash
-go run gen_multisig_test_data.go
+go run ./cmd/gen
 ```
 
 Output:
@@ -82,7 +82,7 @@ Output:
 
 ---
 
-### ✅ Step 2: Construct Unsigned Transaction
+### ⚙️  Step 2: Construct Unsigned Transaction
 
 Generate a random 32-byte hex string:
 ```bash
@@ -92,54 +92,47 @@ HEX=$(openssl rand -hex 32)
 Run:
 
 ```bash
-go run multisig_tx_tool.go \
+go run ./cmd/create-unsigned \
   -address <P2WSH_ADDRESS> \
   -hex $HEX \
   -xpubs xpubs.json \
-  -threshold 2
+  -m 2
 ```
 
 Output:
 - Unsigned TX hex (printed)
-- `redeem.txt` file
+- `redeem.txt` file (and printed hex)
 
 ---
 
-### ✅ Step 3: Sign Transaction
+### ⚙️ Step 3: Sign Transaction
 
 ```bash
-go run sign_multisig_tx.go \
+go run ./cmd/sign \
+  -address <P2WSH_ADDRESS> \
   -tx <UNSIGNED_TX_HEX> \
   -redeem $(cat redeem.txt) \
   -privkeys privkeys.json \
-  -amount 1000 \
-  -threshold 2
+  -m 2
 ```
 
-Only the first `N` private keys (matching the threshold) will be used.
+Only the first `m` private keys (matching the threshold) will be used.
 
 ---
 
-### ✅ Step 4: Verify Witness Stack
+### ⚙️  Step 4: Verify Witness Stack
 
 ```bash
-go run verify_multisig_witness.go \
+go run ./cmd/verify-signed \
   -tx <SIGNED_TX_HEX> \
-  -address <P2WSH_ADDRESS> \
-  -redeem $(cat redeem.txt) \
-  -amount 1000
+  -hex $HEX \
+  -address <P2WSH_ADDRESS> 
 ```
 
 If valid:
 
 ```
 ✅ Witness verification succeeded.
-```
-
-If broken:
-
-```
-❌ Witness verification failed: multisig dummy argument has length 72 instead of 0
 ```
 
 ---
@@ -150,16 +143,18 @@ If broken:
 |----------------|----------------------------------------|
 | `xpubs.json`   | Public metadata (used for unsigned tx) |
 | `privkeys.json`| Private keys (used for signing)        |
-| `redeem.txt`   | Redeem script in hex (used in all steps) |
+| `redeem.txt`   | Redeem script in hex                   |
 
 ---
 
 ## 📌 Notes
 
-- All txs use a fake prevout: `double_sha256(hex input)`
+- The signed tx use a fake prevout from the 32 byte random seed. This ensure
+  the the transaction will never be a valid, broadcastable tx. And the the 32
+  byte value acts as the message to sign.
 - The dummy value in witness stack is required for `OP_CHECKMULTISIG`
-- Witness must include exactly `threshold` signatures
-- Amount is hardcoded to 1000 sats (for test/demo)
+- Witness must include exactly `m` signatures
+- Amount is hardcoded to 1000 sats (tx is not valid, so doesn't really matter).
 
 ---
 
@@ -168,7 +163,6 @@ If broken:
 - PSBT export for hardware wallet signing
 - Support regtest / testnet network selection
 - File output for unsigned and signed TX hex
-- Auto-signing via mnemonic phrase or HSM
 
 ---
 

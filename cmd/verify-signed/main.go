@@ -54,7 +54,7 @@ func main() {
 	)
 
 	flag.StringVar(&txHex, "tx", "", "Signed transaction hex")
-	flag.StringVar(&hexStr, "hex", "", "32-byte random hex string (for double SHA256 prevout)")
+	flag.StringVar(&hexStr, "hex", "", "32-byte random hex string (to use as seed for prevout)")
 	flag.StringVar(&address, "address", "", "P2WSH address being spent from")
 	flag.Parse()
 

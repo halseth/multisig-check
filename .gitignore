@@ -6,3 +6,7 @@ cmd/verify-signed/verify-signed
 redeem.txt
 cmd/gen/gen
 cmd/create-unsigned/create-unsigned
+create-unsigned
+gen
+main
+verify-signed

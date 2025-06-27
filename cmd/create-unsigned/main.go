@@ -53,7 +53,7 @@ func main() {
 	)
 
 	flag.StringVar(&addressStr, "address", "", "P2WSH Bitcoin address to verify")
-	flag.StringVar(&hexStr, "hex", "", "32-byte random hex string (for double SHA256 prevout)")
+	flag.StringVar(&hexStr, "hex", "", "32-byte random hex string (to use as seed for prevout)")
 	flag.StringVar(&xpubFile, "xpubs", "", "Path to xpubs.json")
 	flag.IntVar(&threshold, "m", 2, "m: Multisig threshold (e.g. 2-of-3)")
 	flag.Parse()
