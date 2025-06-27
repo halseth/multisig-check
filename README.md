@@ -1,6 +1,9 @@
-# 🔐 P2WSH Multisig Address Verification Key Possession  Toolkit
+# 🔐 P2WSH Multisig Address Verification and Key Possession Toolkit
 
-This repository contains a toolchain for creating, signing, and verifying _invalid_ Bitcoin native SegWit multisig (`P2WSH`) transactions using Go. This in order to prove that one can sign for a multisig quorum without signing a broadcastable transaction.
+This repository contains a toolchain for creating, signing, and verifying
+_invalid_ Bitcoin native SegWit multisig (`P2WSH`) transactions using Go. This
+in order to prove that one can sign for a multisig quorum without signing a
+broadcastable transaction.
 
 ---
 
@@ -15,7 +18,8 @@ Generates:
 - `privkeys.json` — private keys in WIF format
 - Prints the derived P2WSH address and redeem script
 
-Used to generate example data for testing, SHOULD NOT be used in a production setting.
+Used to generate example data for testing, SHOULD NOT be used in a production
+setting.
 
 ### 2. `cmd/create-unsigned`
 
@@ -28,7 +32,9 @@ Takes:
 
 Produces:
 
-- An **unsigned transaction hex** spending from that address, sending a dummy amount back to the same address. The prevout will be a hash of the random hex string prvided, meaning the transaction is not valid as a real bitcoin spend.
+- An **unsigned transaction hex** spending from that address, sending a dummy
+  amount back to the same address. The prevout will be a hash of the random hex
+  string prvided, meaning the transaction is not valid as a real bitcoin spend.
 - Validates that the derived redeem script matches the given address
 - Saves the `redeem script` as `redeem.txt`
 
