@@ -22,6 +22,7 @@ type PubOutput struct {
 }
 
 type PrivOutput struct {
+	Xpriv      string `json:"xpriv"`
 	PrivKeyWIF string `json:"derived_priv"`
 	Path       string `json:"path"`
 }
@@ -48,18 +49,18 @@ func main() {
 }
 
 func run(nRequired, nKeys int) error {
-	path := []uint32{0, 0}
 
 	var pubs []PubOutput
 	var privs []PrivOutput
 	var addrPubKeys []*btcutil.AddressPubKey
 
-	for i := 0; i < nKeys; i++ {
-		seed, err := randomSeed()
-		if err != nil {
-			return fmt.Errorf("failed to generate seed: %w", err)
-		}
+	seed, err := randomSeed()
+	if err != nil {
+		return fmt.Errorf("failed to generate seed: %w", err)
+	}
 
+	for i := 0; i < nKeys; i++ {
+		path := []uint32{0, uint32(i)}
 		pub, priv, addrPubKey, err := deriveKeyData(seed, path)
 		if err != nil {
 			return fmt.Errorf("failed to derive key: %w", err)
@@ -117,7 +118,12 @@ func deriveKeyData(seed []byte, path []uint32) (PubOutput, PrivOutput, *btcutil.
 
 	// Derive child key
 	current := master
+	pathStr := ""
 	for _, i := range path {
+		if pathStr != "" {
+			pathStr += "/"
+		}
+		pathStr += fmt.Sprintf("%d", i)
 		current, err = current.Derive(i)
 		if err != nil {
 			return PubOutput{}, PrivOutput{}, nil, err
@@ -150,11 +156,12 @@ func deriveKeyData(seed []byte, path []uint32) (PubOutput, PrivOutput, *btcutil.
 
 	pub := PubOutput{
 		Xpub: xpub.String(),
-		Path: "0/0",
+		Path: pathStr,
 	}
 	priv := PrivOutput{
+		Xpriv:      master.String(),
 		PrivKeyWIF: privWIF.String(),
-		Path:       "0/0",
+		Path:       pathStr,
 	}
 	return pub, priv, addrPubKey, nil
 }
