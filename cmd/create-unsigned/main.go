@@ -169,11 +169,6 @@ func run(addressStr, hexStr, xpubPath string, threshold int) error {
 	fmt.Printf("Unsigned TX (hex): %x\n", buf.Bytes())
 	fmt.Printf("Redeem Script (hex): %s\n", redeemHex)
 
-	if err := os.WriteFile("redeem.txt", []byte(redeemHex), 0644); err != nil {
-		return fmt.Errorf("failed to write redeem.txt: %w", err)
-	}
-	fmt.Println("→ Redeem script written to: redeem.txt")
-
 	for i, x := range xpubs {
 		jsonBytes := createJson(x.Path, buf.Bytes(), redeemScript)
 

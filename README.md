@@ -15,7 +15,7 @@ Generates:
 
 - A random m-of-n P2WSH multisig setup
 - `xpubs.json` — public xpub + derivation path data
-- `privkeys.json` — private keys in WIF format
+- `privkeys.json` — private keys with xpriv, derived WIF keys, and derivation paths
 - Prints the derived P2WSH address and redeem script
 
 Used to generate example data for testing, SHOULD NOT be used in a production
@@ -34,22 +34,21 @@ Produces:
 
 - An **unsigned transaction hex** spending from that address, sending a dummy
   amount back to the same address. The prevout will be a hash of the random hex
-  string prvided, meaning the transaction is not valid as a real bitcoin spend.
+  string provided, meaning the transaction is not valid as a real bitcoin spend.
 - Validates that the derived redeem script matches the given address
-- Saves the `redeem script` as `redeem.txt`
+- Saves **unsigned transaction JSON files** (`unsigned-tx0.json`, `unsigned-tx1.json`, etc.) for each xpub, containing the transaction, derivation path, and redeem script in base64 format
 
 ### 3. `cmd/sign`
 
 Signs the transaction from the previous step using:
 
-- `privkeys.json` (private keys)
-- The redeem script (from `redeem.txt`)
-- The unsigned transaction hex
-- The `m` number of required signatures
+- `privkeys.json` (private keys with paths)
+- Unsigned transaction JSON files (from `cmd/create-unsigned`)
+- The P2WSH address
 
-Produces:
+Matches private keys to unsigned transactions based on derivation paths and produces:
 
-- A fully **signed transaction hex**
+- A fully **signed transaction hex** with witness data
 
 ### 4. `cmd/verify-signed`
 
@@ -107,22 +106,24 @@ go run ./cmd/create-unsigned \
 
 Output:
 - Unsigned TX hex (printed)
-- `redeem.txt` file (and printed hex)
+- Redeem script hex (printed)
+- `unsigned-tx0.json`, `unsigned-tx1.json`, etc. (one per key)
 
 ---
 
 ### ⚙️ Step 3: Sign Transaction
 
+For a 2-of-3 multisig, sign with the first 2 keys:
+
 ```bash
 go run ./cmd/sign \
   -address <P2WSH_ADDRESS> \
-  -tx <UNSIGNED_TX_HEX> \
-  -redeem $(cat redeem.txt) \
-  -privkeys privkeys.json \
-  -m 2
+  -tx unsigned-tx0.json \
+  -tx unsigned-tx1.json \
+  -privkeys privkeys.json
 ```
 
-Only the first `m` private keys (matching the threshold) will be used.
+The command matches private keys to unsigned transactions based on their derivation paths. You need to provide as many `-tx` arguments as required signatures (m).
 
 ---
 
@@ -145,11 +146,11 @@ If valid:
 
 ## 📁 File Outputs
 
-| File           | Purpose                                |
-|----------------|----------------------------------------|
-| `xpubs.json`   | Public metadata (used for unsigned tx) |
-| `privkeys.json`| Private keys (used for signing)        |
-| `redeem.txt`   | Redeem script in hex                   |
+| File                   | Purpose                                                          |
+|------------------------|------------------------------------------------------------------|
+| `xpubs.json`           | Public xpubs with derivation paths (used for unsigned tx)        |
+| `privkeys.json`        | Private keys with xprivs, derived WIF keys, and paths (for signing) |
+| `unsigned-tx*.json`    | Unsigned transaction JSON files (one per key, base64 encoded)    |
 
 ---
 
