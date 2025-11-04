@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"encoding/hex"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -21,6 +21,13 @@ type PrivData struct {
 	Path       string `json:"path"`
 }
 
+type JSON struct {
+	Path       string   `json:"path"`
+	Tx         string   `json:"tx"`          // standard (non-url safe) base64
+	VinValues  []int64  `json:"vin_values"`  // nullable
+	ScriptSigs []string `json:"script_sigs"` // standard (non-url safe) base64s
+}
+
 func getScriptPubKeyFromAddress(address string) ([]byte, error) {
 	addr, err := btcutil.DecodeAddress(address, &chaincfg.MainNetParams)
 	if err != nil {
@@ -36,29 +43,81 @@ func getScriptPubKeyFromAddress(address string) ([]byte, error) {
 	return script, nil
 }
 
+type arrayFlags []string
+
+// String is an implementation of the flag.Value interface
+func (i *arrayFlags) String() string {
+	return fmt.Sprintf("%v", *i)
+}
+
+// Set is an implementation of the flag.Value interface
+func (i *arrayFlags) Set(value string) error {
+	*i = append(*i, value)
+	return nil
+}
+
 func main() {
 	var (
-		address    string
-		txHex      string
-		redeemHex  string
-		privFile   string
-		threshold  int
-		amountSats int64 = 1000
+		address  string
+		txFiles  arrayFlags
+		privFile string
 	)
 
 	flag.StringVar(&address, "address", "", "P2WSH address being spent from")
-	flag.StringVar(&txHex, "tx", "", "Unsigned transaction hex")
-	flag.StringVar(&redeemHex, "redeem", "", "Redeem script hex")
+	flag.Var(&txFiles, "tx", "Unsigned transaction json")
 	flag.StringVar(&privFile, "privkeys", "", "Path to privkeys.json")
-	flag.IntVar(&threshold, "m", 2, "Multisig threshold (e.g. 2-of-3)")
 	flag.Parse()
 
-	if address == "" || txHex == "" || redeemHex == "" || privFile == "" || amountSats <= 0 {
+	if address == "" || len(txFiles) == 0 || privFile == "" {
 		flag.Usage()
 		log.Fatal("All flags are required")
 	}
 
-	rawTx, err := hex.DecodeString(txHex)
+	var txJson []JSON
+	for _, f := range txFiles {
+		data, err := ioutil.ReadFile(f)
+		if err != nil {
+			log.Fatalf("Failed to read json file: %v", err)
+		}
+
+		var tx JSON
+		if err := json.Unmarshal(data, &tx); err != nil {
+			log.Fatalf("Failed to parse privkeys JSON: %v", err)
+		}
+
+		txJson = append(txJson, tx)
+	}
+
+	var rawTxHex string
+	var redeemHex string
+	var amountSats int64
+	for _, j := range txJson {
+		raw := j.Tx
+		redeem := j.ScriptSigs
+		amt := j.VinValues
+		if rawTxHex != "" && rawTxHex != raw {
+			log.Fatalf("tx hex doesnt match")
+		}
+		if len(redeem) != 1 {
+			log.Fatalf("no sript sigs")
+		}
+		if redeemHex != "" && redeemHex != redeem[0] {
+			log.Fatalf("sript sigs dont match")
+		}
+		if len(amt) != 1 {
+			log.Fatalf("no vin")
+		}
+		if amountSats != 0 && amountSats != amt[0] {
+			log.Fatalf("amounts dont match")
+		}
+
+		rawTxHex = raw
+		redeemHex = redeem[0]
+		amountSats = amt[0]
+	}
+
+	b64 := base64.StdEncoding
+	rawTx, err := b64.DecodeString(rawTxHex)
 	if err != nil {
 		log.Fatalf("Invalid tx hex: %v", err)
 	}
@@ -68,7 +127,7 @@ func main() {
 		log.Fatalf("Failed to deserialize tx: %v", err)
 	}
 
-	redeemScript, err := hex.DecodeString(redeemHex)
+	redeemScript, err := b64.DecodeString(redeemHex)
 	if err != nil {
 		log.Fatalf("Invalid redeem script: %v", err)
 	}
@@ -89,32 +148,38 @@ func main() {
 	}
 
 	var sigs [][]byte
+	for _, j := range txJson {
+		for _, p := range privEntries {
+			if p.Path != j.Path {
+				continue
+			}
 
-	for _, p := range privEntries {
-		wif, err := btcutil.DecodeWIF(p.PrivKeyWIF)
-		if err != nil {
-			log.Fatalf("Invalid WIF: %v", err)
+			wif, err := btcutil.DecodeWIF(p.PrivKeyWIF)
+			if err != nil {
+				log.Fatalf("Invalid WIF: %v", err)
+			}
+
+			prevOutFetcher := txscript.NewCannedPrevOutputFetcher(
+				scriptPubKey, amountSats,
+			)
+
+			sigHashes := txscript.NewTxSigHashes(tx, prevOutFetcher)
+
+			sig, err := txscript.RawTxInWitnessSignature(
+				tx, sigHashes, 0, amountSats,
+				redeemScript, txscript.SigHashAll, wif.PrivKey,
+			)
+			if err != nil {
+				log.Fatalf("Signing failed: %v", err)
+			}
+			sigs = append(sigs, sig)
+			break
 		}
-
-		prevOutFetcher := txscript.NewCannedPrevOutputFetcher(
-			scriptPubKey, amountSats,
-		)
-
-		sigHashes := txscript.NewTxSigHashes(tx, prevOutFetcher)
-
-		sig, err := txscript.RawTxInWitnessSignature(
-			tx, sigHashes, 0, amountSats,
-			redeemScript, txscript.SigHashAll, wif.PrivKey,
-		)
-		if err != nil {
-			log.Fatalf("Signing failed: %v", err)
-		}
-		sigs = append(sigs, sig)
 	}
 
 	// Build multisig witness stack: empty + sig1 + sig2 + redeem script
 	witness := wire.TxWitness{[]byte{}}
-	for i := 0; i < threshold; i++ {
+	for i := 0; i < len(txJson); i++ {
 		sig := sigs[i]
 		witness = append(witness, sig)
 
