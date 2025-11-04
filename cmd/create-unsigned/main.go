@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -25,6 +26,13 @@ var PREVOUT_PREFIX = []byte("txid random prefix")
 type XpubDerivation struct {
 	Xpub string `json:"xpub"`
 	Path string `json:"path"`
+}
+
+type JSON struct {
+	Path       string   `json:"path"`
+	Tx         string   `json:"tx"`          // standard (non-url safe) base64
+	VinValues  []uint64 `json:"vin_values"`  // nullable
+	ScriptSigs []string `json:"script_sigs"` // standard (non-url safe) base64s
 }
 
 func parseDerivationPath(path string) ([]uint32, error) {
@@ -166,5 +174,35 @@ func run(addressStr, hexStr, xpubPath string, threshold int) error {
 	}
 	fmt.Println("→ Redeem script written to: redeem.txt")
 
+	for i, x := range xpubs {
+		jsonBytes := createJson(x.Path, buf.Bytes(), redeemScript)
+
+		jsonName := fmt.Sprintf("unsigned-tx%d.json", i)
+		if err := os.WriteFile(jsonName, jsonBytes, 0644); err != nil {
+			return fmt.Errorf("failed to write unsigned-tx.json: %w",
+				err)
+		}
+
+		fmt.Println("→ tx written to :", jsonName)
+	}
+
 	return nil
+}
+
+func createJson(path string, txBytes, redeemScript []byte) []byte {
+	b64 := base64.StdEncoding
+
+	scriptSigs := make([]string, 1)
+	scriptSigs[0] = b64.EncodeToString(redeemScript)
+
+	j := JSON{
+		Path:       path,
+		Tx:         b64.EncodeToString(txBytes),
+		VinValues:  []uint64{1000},
+		ScriptSigs: scriptSigs,
+	}
+
+	jsonBytes, _ := json.Marshal(j)
+
+	return jsonBytes
 }
