@@ -134,7 +134,11 @@ func run(addressStr, hexStr, xpubPath string, threshold int) error {
 		return fmt.Errorf("failed to serialize transaction: %w", err)
 	}
 
+	txHash := tx.TxHash()
+
 	fmt.Printf("Unsigned TX (hex): %x\n", buf.Bytes())
+	fmt.Printf("Unsigned TX (base64): %s\n", base64.StdEncoding.EncodeToString(buf.Bytes()))
+	fmt.Printf("TX Hash: %s\n", txHash.String())
 	fmt.Printf("Redeem Script (hex): %s\n", redeemHex)
 
 	for i, x := range xpubs {
