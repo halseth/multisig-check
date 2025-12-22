@@ -14,6 +14,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
+	"github.com/tyler-smith/go-bip39"
 )
 
 type PubOutput struct {
@@ -31,33 +32,97 @@ func main() {
 	var (
 		threshold int
 		nKeys     int
+		hexSeed   string
+		mnemonic  string
 	)
 
+	flag.StringVar(&hexSeed, "hex_seed", "", "BIP32 master seed in hex (if not set, a random one will be used)")
+	flag.StringVar(&mnemonic, "mnemonic", "", "BIP39 mnemonic phrase to import")
 	flag.IntVar(&nKeys, "n", 3, "n: Total keys(e.g. 2-of-3)")
 	flag.IntVar(&threshold, "m", 2, "m: Multisig threshold (e.g. 2-of-3)")
 	flag.Parse()
+
+	if hexSeed != "" && mnemonic != "" {
+		log.Fatal("❌ Error: cannot specify both -hex_seed and -mnemonic")
+	}
+
+	var seed []byte
+	var err error
+
+	if mnemonic != "" {
+		seed, err = mnemonicToSeed(mnemonic)
+		if err != nil {
+			log.Fatalf("❌ Error: %v", err)
+		}
+	} else if hexSeed != "" {
+		seed, err = decodeHexSeed(hexSeed)
+		if err != nil {
+			log.Fatalf("❌ Error: %v", err)
+		}
+	} else {
+		fmt.Println("Generating random seed")
+		seed, err = randomSeed()
+		if err != nil {
+			log.Fatalf("❌ failed to generate seed: %v", err)
+		}
+	}
+
+	if err := printXpubFromSeed(seed); err != nil {
+		log.Fatalf("❌ Error: %v", err)
+	}
 
 	if nKeys <= 0 || threshold <= 0 || threshold > nKeys {
 		flag.Usage()
 		log.Fatal("All flags are required for m-of-n setup")
 	}
 
-	if err := run(threshold, nKeys); err != nil {
+	if err := run(seed, threshold, nKeys); err != nil {
 		fmt.Fprintf(os.Stderr, "❌ Error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(nRequired, nKeys int) error {
+func decodeHexSeed(hexSeed string) ([]byte, error) {
+	// Decode the hex seed
+	return hex.DecodeString(hexSeed)
+}
+
+func mnemonicToSeed(mnemonic string) ([]byte, error) {
+	// Validate the mnemonic
+	if !bip39.IsMnemonicValid(mnemonic) {
+		return nil, fmt.Errorf("invalid mnemonic phrase")
+	}
+
+	// Convert mnemonic to seed (using empty passphrase)
+	seed := bip39.NewSeed(mnemonic, "")
+	return seed, nil
+}
+
+func printXpubFromSeed(seed []byte) error {
+	// Create master key from seed
+	masterKey, err := hdkeychain.NewMaster(seed, &chaincfg.MainNetParams)
+	if err != nil {
+		return fmt.Errorf("failed to create master key: %w", err)
+	}
+
+	// Neuter the key to get the public version (xpub)
+	pubKey, err := masterKey.Neuter()
+	if err != nil {
+		return fmt.Errorf("failed to get public key: %w", err)
+	}
+
+	// Get the xpub string
+	xpub := pubKey.String()
+	fmt.Printf("Derived xpub: %s\n", xpub)
+
+	return nil
+}
+
+func run(seed []byte, nRequired, nKeys int) error {
 
 	var pubs []PubOutput
 	var privs []PrivOutput
 	var addrPubKeys []*btcutil.AddressPubKey
-
-	seed, err := randomSeed()
-	if err != nil {
-		return fmt.Errorf("failed to generate seed: %w", err)
-	}
 
 	for i := 0; i < nKeys; i++ {
 		path := []uint32{0, uint32(i)}
