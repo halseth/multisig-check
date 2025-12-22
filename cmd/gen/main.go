@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/tyler-smith/go-bip39"
 )
 
@@ -30,14 +32,16 @@ type PrivOutput struct {
 
 func main() {
 	var (
-		threshold int
-		nKeys     int
-		hexSeed   string
-		mnemonic  string
+		threshold    int
+		nKeys        int
+		hexSeed      string
+		mnemonic     string
+		pathTemplate string
 	)
 
 	flag.StringVar(&hexSeed, "hex_seed", "", "BIP32 master seed in hex (if not set, a random one will be used)")
 	flag.StringVar(&mnemonic, "mnemonic", "", "BIP39 mnemonic phrase to import")
+	flag.StringVar(&pathTemplate, "path", "m/84'/0'/0'/0/i", "Derivation path template (use 'i' for key index)")
 	flag.IntVar(&nKeys, "n", 3, "n: Total keys(e.g. 2-of-3)")
 	flag.IntVar(&threshold, "m", 2, "m: Multisig threshold (e.g. 2-of-3)")
 	flag.Parse()
@@ -76,7 +80,7 @@ func main() {
 		log.Fatal("All flags are required for m-of-n setup")
 	}
 
-	if err := run(seed, threshold, nKeys); err != nil {
+	if err := run(seed, threshold, nKeys, pathTemplate); err != nil {
 		fmt.Fprintf(os.Stderr, "❌ Error: %v\n", err)
 		os.Exit(1)
 	}
@@ -96,6 +100,23 @@ func mnemonicToSeed(mnemonic string) ([]byte, error) {
 	// Convert mnemonic to seed (using empty passphrase)
 	seed := bip39.NewSeed(mnemonic, "")
 	return seed, nil
+}
+
+func parsePath(pathTemplate string, index int) ([]uint32, error) {
+	// Replace 'i' placeholder with actual index
+	path := strings.ReplaceAll(pathTemplate, "i", fmt.Sprintf("%d", index))
+
+	// Ensure path starts with 'm/' to avoid ethereum's default path prepending
+	if !strings.HasPrefix(path, "m/") && !strings.HasPrefix(path, "m") {
+		path = "m/" + path
+	}
+
+	derivPath, err := accounts.ParseDerivationPath(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return []uint32(derivPath), nil
 }
 
 func printXpubFromSeed(seed []byte) error {
@@ -118,14 +139,17 @@ func printXpubFromSeed(seed []byte) error {
 	return nil
 }
 
-func run(seed []byte, nRequired, nKeys int) error {
+func run(seed []byte, nRequired, nKeys int, pathTemplate string) error {
 
 	var pubs []PubOutput
 	var privs []PrivOutput
 	var addrPubKeys []*btcutil.AddressPubKey
 
 	for i := 0; i < nKeys; i++ {
-		path := []uint32{0, uint32(i)}
+		path, err := parsePath(pathTemplate, i)
+		if err != nil {
+			return fmt.Errorf("failed to parse path for key %d: %w", i, err)
+		}
 		pub, priv, addrPubKey, err := deriveKeyData(seed, path)
 		if err != nil {
 			return fmt.Errorf("failed to derive key: %w", err)
@@ -183,17 +207,15 @@ func deriveKeyData(seed []byte, path []uint32) (PubOutput, PrivOutput, *btcutil.
 
 	// Derive child key
 	current := master
-	pathStr := ""
 	for _, i := range path {
-		if pathStr != "" {
-			pathStr += "/"
-		}
-		pathStr += fmt.Sprintf("%d", i)
 		current, err = current.Derive(i)
 		if err != nil {
 			return PubOutput{}, PrivOutput{}, nil, err
 		}
 	}
+
+	// Use ethereum's DerivationPath for consistent path formatting
+	pathStr := accounts.DerivationPath(path).String()
 
 	pubKey, err := current.ECPubKey()
 	if err != nil {
