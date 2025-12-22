@@ -11,10 +11,8 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
@@ -24,8 +22,9 @@ import (
 var PREVOUT_PREFIX = []byte("txid random prefix")
 
 type XpubDerivation struct {
-	Xpub string `json:"xpub"`
-	Path string `json:"path"`
+	Xpub   string `json:"xpub"`
+	Path   string `json:"path"`
+	Pubkey string `json:"pubkey"`
 }
 
 type JSON struct {
@@ -33,23 +32,6 @@ type JSON struct {
 	Tx         string   `json:"tx"`          // standard (non-url safe) base64
 	VinValues  []uint64 `json:"vin_values"`  // nullable
 	ScriptSigs []string `json:"script_sigs"` // standard (non-url safe) base64s
-}
-
-func parseDerivationPath(path string) ([]uint32, error) {
-	if path == "" {
-		return nil, fmt.Errorf("empty derivation path")
-	}
-	segs := strings.Split(path, "/")
-	var out []uint32
-	for _, s := range segs {
-		var i uint32
-		_, err := fmt.Sscanf(s, "%d", &i)
-		if err != nil {
-			return nil, fmt.Errorf("invalid path segment %q: %w", s, err)
-		}
-		out = append(out, i)
-	}
-	return out, nil
 }
 
 func main() {
@@ -89,28 +71,14 @@ func run(addressStr, hexStr, xpubPath string, threshold int) error {
 
 	var pubKeys []*btcutil.AddressPubKey
 	for _, x := range xpubs {
-		extKey, err := hdkeychain.NewKeyFromString(x.Xpub)
+		// Decode the hex pubkey directly
+		pubkeyBytes, err := hex.DecodeString(x.Pubkey)
 		if err != nil {
-			return fmt.Errorf("invalid xpub: %w", err)
+			return fmt.Errorf("invalid pubkey hex %q: %w", x.Pubkey, err)
 		}
 
-		path, err := parseDerivationPath(x.Path)
-		if err != nil {
-			return fmt.Errorf("invalid path %q: %w", x.Path, err)
-		}
-
-		for _, i := range path {
-			extKey, err = extKey.Derive(i)
-			if err != nil {
-				return fmt.Errorf("error deriving child key: %w", err)
-			}
-		}
-
-		pubKey, err := extKey.ECPubKey()
-		if err != nil {
-			return fmt.Errorf("error getting pubkey: %w", err)
-		}
-		addrPubKey, err := btcutil.NewAddressPubKey(pubKey.SerializeCompressed(), &chaincfg.MainNetParams)
+		// Create AddressPubKey from the compressed pubkey bytes
+		addrPubKey, err := btcutil.NewAddressPubKey(pubkeyBytes, &chaincfg.MainNetParams)
 		if err != nil {
 			return fmt.Errorf("error creating AddressPubKey: %w", err)
 		}
