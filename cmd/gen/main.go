@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -186,6 +187,7 @@ func run(seed []byte, nRequired, nKeys int, pathTemplate string) error {
 	fmt.Println("✅ Generated multisig data")
 	fmt.Println("P2WSH Address:", addr.EncodeAddress())
 	fmt.Println("Redeem Script (hex):", hex.EncodeToString(redeemScript))
+	fmt.Println("Redeem Script (base64):", base64.StdEncoding.EncodeToString(redeemScript))
 	fmt.Println("→ Public metadata saved to: xpubs.json")
 	fmt.Println("→ Private keys saved to:    privkeys.json")
 
