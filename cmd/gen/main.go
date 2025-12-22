@@ -20,8 +20,9 @@ import (
 )
 
 type PubOutput struct {
-	Xpub string `json:"xpub"`
-	Path string `json:"path"`
+	Xpub   string `json:"xpub"`
+	Path   string `json:"path"`
+	Pubkey string `json:"pubkey"`
 }
 
 type PrivOutput struct {
@@ -222,7 +223,10 @@ func deriveKeyData(seed []byte, path []uint32) (PubOutput, PrivOutput, *btcutil.
 		return PubOutput{}, PrivOutput{}, nil, err
 	}
 
-	addrPubKey, err := btcutil.NewAddressPubKey(pubKey.SerializeCompressed(), &chaincfg.MainNetParams)
+	// Get compressed pubkey (33 bytes with 02/03 prefix)
+	compressedPubkey := pubKey.SerializeCompressed()
+
+	addrPubKey, err := btcutil.NewAddressPubKey(compressedPubkey, &chaincfg.MainNetParams)
 	if err != nil {
 		return PubOutput{}, PrivOutput{}, nil, err
 	}
@@ -242,8 +246,9 @@ func deriveKeyData(seed []byte, path []uint32) (PubOutput, PrivOutput, *btcutil.
 	}
 
 	pub := PubOutput{
-		Xpub: xpub.String(),
-		Path: pathStr,
+		Xpub:   xpub.String(),
+		Path:   pathStr,
+		Pubkey: hex.EncodeToString(compressedPubkey),
 	}
 	priv := PrivOutput{
 		Xpriv:      master.String(),
