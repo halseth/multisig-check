@@ -186,6 +186,13 @@ func main() {
 	}
 	witness = append(witness, redeemScript)
 
+	// Print signatures as base64
+	fmt.Println("Signatures (base64):")
+	for i, sig := range sigs {
+		fmt.Printf("  %d: %s\n", i, base64.StdEncoding.EncodeToString(sig))
+	}
+	fmt.Println()
+
 	tx.TxIn[0].Witness = witness
 
 	var buf bytes.Buffer
