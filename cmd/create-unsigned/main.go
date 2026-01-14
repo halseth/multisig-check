@@ -36,29 +36,27 @@ type JSON struct {
 
 func main() {
 	var (
-		addressStr string
-		hexStr     string
-		xpubFile   string
-		threshold  int
+		hexStr    string
+		xpubFile  string
+		threshold int
 	)
 
-	flag.StringVar(&addressStr, "address", "", "P2WSH Bitcoin address to verify")
 	flag.StringVar(&hexStr, "hex", "", "32-byte random hex string (to use as seed for prevout)")
 	flag.StringVar(&xpubFile, "xpubs", "", "Path to xpubs.json")
 	flag.IntVar(&threshold, "m", 2, "m: Multisig threshold (e.g. 2-of-3)")
 	flag.Parse()
 
-	if threshold <= 0 || addressStr == "" || hexStr == "" || xpubFile == "" {
+	if threshold <= 0 || hexStr == "" || xpubFile == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	if err := run(addressStr, hexStr, xpubFile, threshold); err != nil {
+	if err := run(hexStr, xpubFile, threshold); err != nil {
 		log.Fatalf("❌ Error: %v", err)
 	}
 }
 
-func run(addressStr, hexStr, xpubPath string, threshold int) error {
+func run(hexStr, xpubPath string, threshold int) error {
 	data, err := ioutil.ReadFile(xpubPath)
 	if err != nil {
 		return fmt.Errorf("failed to read xpub file: %w", err)
@@ -98,11 +96,6 @@ func run(addressStr, hexStr, xpubPath string, threshold int) error {
 		return fmt.Errorf("failed to derive P2WSH address: %w", err)
 	}
 
-	if addr.EncodeAddress() != addressStr {
-		return fmt.Errorf("address mismatch: derived %s != expected %s", addr.EncodeAddress(), addressStr)
-	}
-	fmt.Println("✅ Address verification successful.")
-
 	// Compute SHA256 of the input hex string to simulate txid
 	// To ensure real transaction data cannot be inserted here, we prepend the message with a fixed string.
 	rawBytes, err := hex.DecodeString(hexStr)
@@ -140,6 +133,7 @@ func run(addressStr, hexStr, xpubPath string, threshold int) error {
 	fmt.Printf("Unsigned TX (base64): %s\n", base64.StdEncoding.EncodeToString(buf.Bytes()))
 	fmt.Printf("TX Hash: %s\n", txHash.String())
 	fmt.Printf("Redeem Script (hex): %s\n", redeemHex)
+	fmt.Printf("Address: %s\n", addr.EncodeAddress())
 
 	for i, x := range xpubs {
 		jsonBytes := createJson(x.Path, buf.Bytes(), redeemScript)
